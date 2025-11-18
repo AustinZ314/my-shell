@@ -276,7 +276,11 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
 
     // handle piping
     int num_cmds = 1;
-    int pipe_inds[list->size];
+    int *pipe_inds = malloc(list->size * sizeof(int));
+    if(pipe_inds == NULL) {
+        perror("malloc");
+        return 1;
+    }
     pipe_inds[0] = -1;
 
     // find the indices of all the pipes
@@ -284,6 +288,7 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
         if(strcmp(args[i], "|") == 0) {
             if(args[i + 1] == NULL) {
                 fprintf(stderr, "Error: pipe with no command after it\n");
+                free(pipe_inds);
                 return 1;
             }
             pipe_inds[num_cmds] = i;
@@ -294,15 +299,28 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
 
     // check if there's a pipeline
     if(num_cmds > 1) {
-        int pipe_fds[num_cmds - 1][2];
+        int (*pipe_fds)[2] = malloc((num_cmds - 1) * sizeof(int[2]));
+        if(pipe_fds == NULL) {
+            perror("malloc");
+            free(pipe_inds);
+            return 1;
+        }
         for(int i = 0; i < num_cmds - 1; i++) {
             if(pipe(pipe_fds[i]) == -1) {
                 perror("pipe");
+                free(pipe_inds);
+                free(pipe_fds);
                 return 1;
             }
         }
 
-        pid_t pids[num_cmds];
+        pid_t *pids = malloc(num_cmds * sizeof(pid_t));
+        if(pids == NULL) {
+            perror("malloc");
+            free(pipe_inds);
+            free(pipe_fds);
+            return 1;
+        }
         for(int i = 0; i < num_cmds; i++) {
             char **curr_args = &args[pipe_inds[i] + 1];
 
@@ -315,6 +333,9 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
             pids[i] = fork();
             if(pids[i] == -1) {
                 perror("fork");
+                free(pipe_inds);
+                free(pipe_fds);
+                free(pids);
                 return 1;
             }
 
@@ -330,6 +351,10 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
                     close(pipe_fds[j][0]);
                     close(pipe_fds[j][1]);
                 }
+
+                free(pipe_inds);
+                free(pipe_fds);
+                free(pids);
 
                 execute_child(curr_args, NULL, NULL, batch);
                 exit(EXIT_FAILURE); // should not be reached, fail if it does
@@ -352,6 +377,8 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
                 }
             }
         }
+        free(pipe_fds);
+        free(pids);
     } else { // no pipes, check for redirects and normal cmds
         ArrayList clean;
         make_list(&clean, list->size);
@@ -363,6 +390,7 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
                 if(args[i + 1] == NULL) {
                     fprintf(stderr, "Error: did not specify input file\n");
                     free_list(&clean);
+                    free(pipe_inds);
                     return 1;
                 }
                 input_file = args[i + 1];
@@ -371,6 +399,7 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
                 if(args[i + 1] == NULL) {
                     fprintf(stderr, "Error: did not specify output file\n");
                     free_list(&clean);
+                    free(pipe_inds);
                     return 1;
                 }
                 output_file = args[i + 1];
@@ -383,6 +412,7 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
 
         if(clean.size <= 1) {
             free_list(&clean);
+            free(pipe_inds);
             return prev_status;
         }
         
@@ -410,6 +440,8 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
 
         free_list(&clean);
     }
+
+    free(pipe_inds);
 
     if(die_flag) {
         return STATUS_DIE;
