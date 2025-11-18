@@ -145,7 +145,7 @@ void execute_child(char **args, char *input_file, char *output_file, int batch) 
     // handle built in commands
     if(strcmp(args[0], "pwd") == 0) {
         if(args[1] != NULL) {
-            fprintf(stderr, "Error: pwd does not take arguments");
+            fprintf(stderr, "Error: pwd does not take arguments\n");
             exit(EXIT_FAILURE);
         }
 
@@ -286,11 +286,23 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
     // find the indices of all the pipes
     for(int i = 0; args[i] != NULL; i++) {
         if(strcmp(args[i], "|") == 0) {
-            if(args[i + 1] == NULL) {
+            if(args[i + 1] == NULL || strcmp(args[i + 1], "|") == 0 || strcmp(args[i + 1], ">") == 0 || strcmp(args[i + 1], "<") == 0) {
                 fprintf(stderr, "Error: pipe with no command after it\n");
                 free(pipe_inds);
                 return 1;
             }
+            if(i > 0) {
+                if(strcmp(args[i - 1], "<") == 0) {
+                    fprintf(stderr, "Error: did not specify input file\n");
+                    free(pipe_inds);
+                    return 1;
+                } else if(strcmp(args[i - 1], ">") == 0) {
+                    fprintf(stderr, "Error: did not specify output file\n");
+                    free(pipe_inds);
+                    return 1;
+                }
+            }
+            
             pipe_inds[num_cmds] = i;
             num_cmds++;
             args[i] = NULL; // set the pipe to NULL so that it marks the end of the subcommand's args
@@ -387,7 +399,7 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
         
         for(int i = 0; args[i] != NULL; i++) {
             if(strcmp(args[i], "<") == 0) {
-                if(args[i + 1] == NULL) {
+                if(args[i + 1] == NULL || strcmp(args[i + 1], ">") == 0 || strcmp(args[i + 1], "<") == 0 || strcmp(args[i + 1], "|") == 0) {
                     fprintf(stderr, "Error: did not specify input file\n");
                     free_list(&clean);
                     free(pipe_inds);
@@ -396,7 +408,7 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
                 input_file = args[i + 1];
                 i++;
             } else if(strcmp(args[i], ">") == 0) {
-                if(args[i + 1] == NULL) {
+                if(args[i + 1] == NULL || strcmp(args[i + 1], ">") == 0 || strcmp(args[i + 1], "<") == 0 || strcmp(args[i + 1], "|") == 0) {
                     fprintf(stderr, "Error: did not specify output file\n");
                     free_list(&clean);
                     free(pipe_inds);
@@ -426,7 +438,7 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
         // handle cd in the parent
         if (strcmp(clean.tokens[0], "cd") == 0) {
             if(clean.tokens[1] == NULL || clean.tokens[2] != NULL) {
-                fprintf(stderr, "Error: cd only takes one argument\n");
+                fprintf(stderr, "Error: cd takes one argument\n");
                 new_status = 1;
             } else if (chdir(clean.tokens[1]) != 0) {
                 perror("cd");
@@ -486,13 +498,6 @@ ArrayList parse_cmd(char *cmd) {
 
     // end token list with null terminator for execv()
     list_append(&list, NULL);
-
-    // JUST FOR DEBUG
-    // printf("Tokens found (%d): \n", list.size - 1);
-    // for (int i = 0; i < list.size - 1; i++) {
-    //     printf("  token[%d]: '%s'\n", i, list.tokens[i]);
-    // }
-    // printf("----\n");
 
     return list;
 }
