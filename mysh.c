@@ -53,6 +53,20 @@ void free_list(ArrayList *list) {
     list->cap = 0;
 }
 
+char * my_strdup(char *c) {
+    if(c == NULL) {
+        return NULL;
+    }
+    int len = strlen(c) + 1;
+    char *new_c = malloc(len);
+    if(new_c == NULL) {
+        perror("malloc strdup");
+        exit(EXIT_FAILURE);
+    }
+    memcpy(new_c, c, len);
+    return new_c;
+}
+
 char * find_path(char *cmd) {
     // check if it's a bare name
     int slash_found = 0;
@@ -67,7 +81,7 @@ char * find_path(char *cmd) {
 
     if(slash_found == 1) {
         if(access(cmd, X_OK) == 0) {
-            return strdup(cmd);
+            return my_strdup(cmd);
         } else {
             return NULL;
         }
@@ -78,7 +92,7 @@ char * find_path(char *cmd) {
         for(int i = 0; search_dirs[i] != NULL; i++) {
             snprintf(path_buf, MAX_PATH_LEN, "%s/%s", search_dirs[i], cmd);
             if(access(path_buf, X_OK) == 0) {
-                return strdup(path_buf);
+                return my_strdup(path_buf);
             }
         }
     }
