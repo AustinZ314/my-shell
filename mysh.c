@@ -101,8 +101,8 @@ char * find_path(char *cmd) {
 }
 
 // handle actually executing a given command as a child process
-void execute_child(char **args, char *input_file, char *output_file, int batch) {
-    // set input file if specified, or /dev/null if in batch mode
+void execute_child(char **args, char *input_file, char *output_file, int devnull) {
+    // set input file if specified, or /dev/null if reading from non-terminal standard input
     if(input_file != NULL) {
         int input_fd = open(input_file, O_RDONLY);
         if(input_fd == -1) {
@@ -114,7 +114,7 @@ void execute_child(char **args, char *input_file, char *output_file, int batch) 
             exit(EXIT_FAILURE);
         }
         close(input_fd);
-    } else if(batch) {
+    } else if(devnull) {
         int input_fd = open("/dev/null", O_RDONLY);
         if(input_fd != -1) {
             if(dup2(input_fd, STDIN_FILENO) == -1) {
@@ -223,13 +223,13 @@ void execute_child(char **args, char *input_file, char *output_file, int batch) 
 }
 
 // fork, call function to execute child process, and have parent wait for it
-int forked_cmd(char **args, char *input_file, char *output_file, int batch) {
+int forked_cmd(char **args, char *input_file, char *output_file, int devnull) {
     pid_t child = fork();
     if(child == -1) {
         perror("fork");
         return 1;
     } else if(child == 0) {
-        execute_child(args, input_file, output_file, batch);
+        execute_child(args, input_file, output_file, devnull);
     } else {
         int status;
         waitpid(child, &status, 0);
@@ -243,7 +243,7 @@ int forked_cmd(char **args, char *input_file, char *output_file, int batch) {
     return 1;
 }
 
-int execute_cmd(ArrayList *list, int prev_status, int batch) {
+int execute_cmd(ArrayList *list, int prev_status, int devnull) {
     // no cmd to execute, don't change prev_status
     if(list->size <= 1) {
         return prev_status;
@@ -253,6 +253,7 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
     int new_status = prev_status;
     int exit_flag = 0;
     int die_flag = 0;
+    char *cd_flag = NULL;
 
     // don't count first token as an arg if it's "and" or "or"
     if(strcmp(args[0], "and") == 0) {
@@ -340,6 +341,8 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
                 die_flag = 1;
             } else if(strcmp(curr_args[0], "exit") == 0) {
                 exit_flag = 1;
+            } else if(strcmp(curr_args[0], "cd") == 0) {
+                cd_flag = my_strdup(curr_args[1]);
             }
 
             pids[i] = fork();
@@ -348,6 +351,7 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
                 free(pipe_inds);
                 free(pipe_fds);
                 free(pids);
+                if (cd_flag) free(cd_flag);
                 return 1;
             }
 
@@ -367,8 +371,9 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
                 free(pipe_inds);
                 free(pipe_fds);
                 free(pids);
+                if (cd_flag) free(cd_flag);
 
-                execute_child(curr_args, NULL, NULL, batch);
+                execute_child(curr_args, NULL, NULL, devnull);
                 exit(EXIT_FAILURE); // should not be reached, fail if it does
             }
         }
@@ -391,6 +396,12 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
         }
         free(pipe_fds);
         free(pids);
+
+        // actually change directory of parent if there's a cd in the pipeline
+        if(cd_flag != NULL) {
+            chdir(cd_flag); // don't print out an error, child would have already printed
+            free(cd_flag);
+        }
     } else { // no pipes, check for redirects and normal cmds
         ArrayList clean;
         make_list(&clean, list->size);
@@ -447,7 +458,7 @@ int execute_cmd(ArrayList *list, int prev_status, int batch) {
                 new_status = 0;
             }
         } else {
-            new_status = forked_cmd(clean.tokens, input_file, output_file, batch);
+            new_status = forked_cmd(clean.tokens, input_file, output_file, devnull);
         }
 
         free_list(&clean);
@@ -525,7 +536,7 @@ int main(int argc, char **argv) {
         printf("Welcome to my shell!\n"); // welcome message if interactive
     }
 
-    int batch = (!interactive_mode && fd == STDIN_FILENO);
+    int devnull = (!interactive_mode && fd == STDIN_FILENO);
     char line_buf[MAX_LINE_LEN];
     int line_ind = 0;
     char char_buf;
@@ -552,7 +563,7 @@ int main(int argc, char **argv) {
                 if(line_ind > 0) {
                     line_buf[line_ind] = '\0';
                     ArrayList list = parse_cmd(line_buf);
-                    prev_status = execute_cmd(&list, prev_status, batch);
+                    prev_status = execute_cmd(&list, prev_status, devnull);
                     free_list(&list);
                 }
                 if(prev_status == STATUS_DIE) { // die was executed
@@ -563,7 +574,7 @@ int main(int argc, char **argv) {
             } else if(char_buf == '\n') { // end of cmd
                 line_buf[line_ind] = '\0';
                 ArrayList list = parse_cmd(line_buf);
-                prev_status = execute_cmd(&list, prev_status, batch);
+                prev_status = execute_cmd(&list, prev_status, devnull);
                 free_list(&list);
                 if(prev_status == STATUS_DIE) { // die was executed
                     return EXIT_FAILURE;
