@@ -1,0 +1,4 @@
+false
+or echo ran-or
+true
+and echo ran-and
