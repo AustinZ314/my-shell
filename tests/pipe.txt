@@ -1,3 +1,4 @@
 echo pipeline-test | tr a-z A-Z
 echo hello > tests/out.txt
 cat < tests/out.txt
+which ls | pwd

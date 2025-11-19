@@ -1,0 +1,3 @@
+# this is one big comment and should be ignored
+# man ls
+echo before # echo after

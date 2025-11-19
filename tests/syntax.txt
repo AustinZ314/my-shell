@@ -1,0 +1,3 @@
+echo bad_syntax > >
+pwd | | ls
+cd tests < > textfile.txt

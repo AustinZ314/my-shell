@@ -2,3 +2,5 @@ false
 or echo ran-or
 true
 and echo ran-and
+or echo ran-or-again
+and echo ran-and-again
