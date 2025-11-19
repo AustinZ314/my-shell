@@ -1,7 +1,7 @@
 Austin Zhang asz43  
 Amanda Lei al1458
 
-### Implementation Notes:
+## Implementation Notes:
 - The nested loops in `main()` read in one byte at a time using `read()` and pass input to `parse_cmd()` one line at a time
 - `parse_cmd()` takes the line and separates it into tokens
 - `execute_cmd()` goes through the tokens to process pipes, redirects, and commands
@@ -10,6 +10,9 @@ Amanda Lei al1458
 - Commands with `exit`, `die`, and `cd` are flagged so that their behavior is also executed in the parent process (executing them only in a child process wouldn't affect the actual shell)
 - `mysh` has an interactive mode and a batch mode, determined through the use of isatty() based on the source of input
 - `execv()` is used to execute programs since it can take in a variable number of arguments and it works well with the ArrayList
+
+## Testing Plan
+Our test suite focuses on confirming the correctness and robustness of each part of mysh. Our tests check whether mysh produces the correct output, prints out errors, and terminates in appropriate scenarios.
 
 ### Description of Testing Files
 All of the files we use for testing are in the `tests/` directory.
