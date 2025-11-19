@@ -1,7 +1,7 @@
 Austin Zhang asz43  
 Amanda Lei al1458
 
-## Implementation Notes:
+### Implementation Notes:
 - The nested loops in `main()` read in one byte at a time using `read()` and pass input to `parse_cmd()` one line at a time
 - `parse_cmd()` takes the line and separates it into tokens
 - `execute_cmd()` goes through the tokens to process pipes, redirects, and commands
